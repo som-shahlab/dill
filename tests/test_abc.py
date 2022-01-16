@@ -2,14 +2,22 @@
 """
 test dill's ability to pickle abstract base class objects
 """
-import dill as pickle
+import dill
 import abc
 
 from types import FunctionType
 
-pickle.settings['recurse'] = True
+dill.settings['recurse'] = True
 
-class OneTwoThree(abc.ABC):
+if dill._dill.PY3:
+    ABC = abc.ABC
+else:
+    ABC = object
+
+class OneTwoThree(ABC):
+    if not dill._dill.PY3:
+        __metaclass__ = abc.ABCMeta
+
     @abc.abstractmethod
     def foo(self):
         """A method"""
@@ -63,50 +71,74 @@ class EasyAsAbc(OneTwoThree):
         return "Static Method SFOO"
 
 def test_abc_non_local():
-    assert pickle.loads(pickle.dumps(OneTwoThree)) == OneTwoThree
-    assert pickle.loads(pickle.dumps(EasyAsAbc)) == EasyAsAbc
+    assert dill.copy(OneTwoThree) is not OneTwoThree
+    assert dill.copy(EasyAsAbc) is not EasyAsAbc
+    assert dill.copy(OneTwoThree, byref=True) is OneTwoThree
+    assert dill.copy(EasyAsAbc, byref=True) is EasyAsAbc
     instance = EasyAsAbc()
     # Set a property that StockPickle can't preserve
     instance.bar = lambda x: x**2
-    depickled = pickle.loads(pickle.dumps(instance))
+    depickled = dill.copy(instance)
     assert type(depickled) == type(instance)
     assert type(depickled.bar) == FunctionType
     assert depickled.bar(3) == 9
     assert depickled.sfoo() == "Static Method SFOO"
     assert depickled.cfoo() == "Class Method CFOO"
     assert depickled.foo() == "Instance Method FOO"
-    print("Tada")
 
 def test_abc_local():
     """
     Test using locally scoped ABC class
     """
-    class LocalABC(abc.ABC):
+    class LocalABC(ABC):
+        if not dill._dill.PY3:
+            __metaclass__ = abc.ABCMeta
+
         @abc.abstractmethod
         def foo(self):
             pass
 
-    res = pickle.dumps(LocalABC)
-    pik = pickle.loads(res)
-    assert type(pik) == type(LocalABC)
+        def baz(self):
+            return repr(self)
+
+    labc = dill.copy(LocalABC)
+    assert labc is not LocalABC
+    assert type(labc) is type(LocalABC)
     # TODO should work like it does for non local classes
     # <class '__main__.LocalABC'>
     # <class '__main__.test_abc_local.<locals>.LocalABC'>
 
-    class Real(pik):
+    class Real(labc):
         def foo(self):
             return "True!"
+
+        def baz(self):
+            return "My " + super(Real, self).baz()
 
     real = Real()
     assert real.foo() == "True!"
 
     try:
-        pik()
+        labc()
     except TypeError as e:
-        print("Tada: ", e)
+        # Expected error
+        pass
     else:
         print('Failed to raise type error')
         assert False
+
+    labc2, pik = dill.copy((labc, Real()))
+    if dill._dill.PY3:
+        assert '.Real' in type(pik).__name__
+    else:
+        assert 'Real' == type(pik).__name__
+    assert type(pik) is not Real
+    assert labc2 is not LocalABC
+    assert labc2 is not labc
+    assert isinstance(pik, labc2)
+    assert not isinstance(pik, labc)
+    assert not isinstance(pik, LocalABC)
+    assert pik.baz() == "My " + repr(pik)
 
 def test_meta_local_no_cache():
     """
@@ -125,17 +157,12 @@ def test_meta_local_no_cache():
     assert not issubclass(KlassyClass, LocalMetaABC)
     assert issubclass(ClassyClass, LocalMetaABC)
 
-    res = pickle.dumps(LocalMetaABC)
-    assert b"ClassyClass" in res
-    assert b"KlassyClass" not in res
+    res = dill.dumps((LocalMetaABC, ClassyClass, KlassyClass))
 
-    pik = pickle.loads(res)
-    assert type(pik) == type(LocalMetaABC)
-
-    pik.register(ClassyClass)  # TODO: test should pass without calling register again
-    assert not issubclass(KlassyClass, pik)
-    assert issubclass(ClassyClass, pik)
-    print("tada")
+    lmabc, cc, kc = dill.loads(res)
+    assert type(lmabc) == type(LocalMetaABC)
+    assert not issubclass(kc, lmabc)
+    assert issubclass(cc, lmabc)
 
 if __name__ == '__main__':
     test_abc_non_local()
