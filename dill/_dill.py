@@ -521,7 +521,7 @@ class Pickler(StockPickler):
        #_strictio = kwds.pop('strictio', None)
         _fmode = kwds.pop('fmode', None)
         _recurse = kwds.pop('recurse', None)
-        StockPickler.__init__(self, *args, **kwds)
+        super(Pickler, self).__init__(*args, **kwds)
         self._main = _main_module
         self._diff_cache = {}
         self._byref = settings['byref'] if _byref is None else _byref
@@ -578,6 +578,53 @@ class Pickler(StockPickler):
         return
     dump.__doc__ = StockPickler.dump.__doc__
     pass
+
+
+from pickle import Pickler as _FastPickler
+class FastPickler(_FastPickler):
+    """python's Pickler extended to interpreter sessions"""
+    dispatch = MetaCatchingDict(StockPickler.dispatch.copy())
+    _session = False
+    from .settings import settings
+
+    def __init__(self, *args, **kwds):
+        settings = Pickler.settings
+        _byref = kwds.pop('byref', None)
+       #_strictio = kwds.pop('strictio', None)
+        _fmode = kwds.pop('fmode', None)
+        _recurse = kwds.pop('recurse', None)
+
+        file = args[0]
+        if len(args) > 1:
+            protocol = args[1]
+        else:
+            protocol = kwds.get('protocol', None)
+        if len(args) > 2:
+            fix_imports = args[2]
+        else:
+            fix_imports = kwds.get('fix_imports', True)
+        if len(args) > 3:
+            buffer_callback = args[3]
+        else:
+            buffer_callback = kwds.get('buffer_callback', None)
+
+        if buffer_callback is None:
+            super(FastPickler, self).__init__(file, protocol=protocol,
+                fix_imports=fix_imports)
+        else:
+            super(FastPickler, self).__init__(file, protocol=protocol,
+                fix_imports=fix_imports, buffer_callback=buffer_callback)
+
+        self._main = _main_module
+        self._diff_cache = {}
+        self._byref = settings['byref'] if _byref is None else _byref
+        self._strictio = False #_strictio
+        self._fmode = settings['fmode'] if _fmode is None else _fmode
+        self._recurse = settings['recurse'] if _recurse is None else _recurse
+        self._postproc = {}
+
+del _FastPickler
+Pickler = FastPickler
 
 class Unpickler(StockUnpickler):
     """python's Unpickler extended to interpreter sessions and more types"""
@@ -1720,11 +1767,7 @@ def save_type(pickler, obj, postproc_list=None):
     # special cases: NoneType, NotImplementedType, EllipsisType
     elif obj is type(None):
         log.info("T7: %s" % obj)
-        #XXX: pickler.save_reduce(type, (None,), obj=obj)
-        if PY3:
-            pickler.write(bytes('c__builtin__\nNoneType\n', 'UTF-8'))
-        else:
-            pickler.write('c__builtin__\nNoneType\n')
+        pickler.save_reduce(type, (None,), obj=obj)
         log.info("# T7")
     elif obj is NotImplementedType:
         log.info("T7: %s" % obj)
