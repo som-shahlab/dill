@@ -1021,8 +1021,10 @@ def _import_module(import_name, safe=False):
             return None
         raise
 
+nomad_modules = ['__main__', None]
+
 def _locate_function(obj, session=False):
-    if obj.__module__ in ['__main__', None]: # and session:
+    if obj.__module__ in nomad_modules: # and session:
         return False
     found = _import_module(obj.__module__ + '.' + obj.__name__, safe=True)
     return found is obj
