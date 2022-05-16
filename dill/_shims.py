@@ -105,6 +105,43 @@ class _CallableReduce(Reduce):
         obj = func(*f_args)
         return obj(*args, **kwargs)
 
+class GlobalVars(object):
+    """
+    """
+    __slots__ = ['globs', 'dumped_names']
+    def __new__(cls, globs, pickler):
+        """
+        Args:
+            globs: a dictionary of global variables
+        """
+        dump_cache = getattr(pickler, '_dump_cache', None)
+        if dump_cache is not None: # is dill
+            dumped_names = dump_cache.get(id(globs), ...)
+            # None indicates that the entire dictionary was saved
+            # ... indicates first time seeing the dictionary
+            if dumped_names is None or id(globs) in pickler.memo:
+                # globals dictionary already saved, don't do anything special
+                return globs
+            else:
+                if dumped_names is ...:
+                    dumped_names = dump_cache[id(globs)] = set()
+                self = super(GlobalVars, object).__new__(cls)
+                self.globs = globs
+                self.dumped_names = dumped_names
+                return self
+        else:
+            return globs
+    def __repr__(self):
+        return 'GlobalVars%r' % (self.globs,)
+    def __copy__(self):
+        return self # pragma: no cover
+    def __deepcopy__(self, memo):
+        return self # pragma: no cover
+    @staticmethod
+    def save(pickler, self):
+        # TODO: save only the required keys in the dictionary
+        pass
+
 __NO_DEFAULT = _dill.Sentinel('Getattr.NO_DEFAULT')
 
 def Getattr(object, name, default=__NO_DEFAULT):

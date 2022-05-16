@@ -532,6 +532,7 @@ class Pickler(StockPickler):
         self._recurse = settings['recurse'] if _recurse is None else _recurse
         from collections import OrderedDict
         self._postproc = OrderedDict()
+        self._dump_cache = {}
 
     def dump(self, obj): #NOTE: if settings change, need to update attributes
         # register if the object is a numpy ufunc
@@ -578,6 +579,7 @@ class Pickler(StockPickler):
             raise PicklingError(msg)
         else:
             StockPickler.dump(self, obj)
+        self._dump_cache.clear()
         return
     dump.__doc__ = StockPickler.dump.__doc__
     pass
@@ -1200,6 +1202,9 @@ def save_module_dict(pickler, obj):
         else:
             pickler.write('c%s\n__dict__\n' % obj['__name__'])
         log.info("# D4")
+    elif is_dill(pickler, child=False) and id(obj) in pickler._dump_cache:
+        # TODO: dump the rest of the dictionary out and invalidate the cache entry
+        pass
     else:
         log.info("D2: <dict%s" % str(obj.__repr__).split('dict')[-1]) # obj
         if is_dill(pickler, child=False) and pickler._session:
@@ -1850,6 +1855,7 @@ def save_function(pickler, obj):
         _byref = getattr(pickler, '_byref', None)
         _postproc = getattr(pickler, '_postproc', None)
         postproc_list = []
+        # TODO: replace this mechanism with saving _shims.GlobalVars
         if _recurse:
             # recurse to get all globals referred to by obj
             from .detect import globalvars
@@ -1948,6 +1954,8 @@ def save_function(pickler, obj):
         StockPickler.save_global(pickler, obj, name=name)
         log.info("# F2")
     return
+
+register(_shims.GlobalVars)(_shims.GlobalVars.save)
 
 # quick sanity checking
 def pickles(obj,exact=False,safe=False,**kwds):
