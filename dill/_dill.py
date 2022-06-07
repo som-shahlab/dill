@@ -1207,49 +1207,52 @@ def _save_with_postproc(pickler, reduction, is_pickler_dill=None, obj=Getattr.NO
 @register(CodeType)
 def save_code(pickler, obj):
     log.info("Co: %s" % obj)
+    patch_code_object = getattr(pickler, 'patch_code_object', None)
+    if patch_code_object is not None:
+        ns = patch_code_object(obj)
     if PY3:
-        if hasattr(obj, "co_endlinetable"):
+        if hasattr(ns, "co_endlinetable"):
             args = (
-                obj.co_argcount, obj.co_posonlyargcount,
-                obj.co_kwonlyargcount, obj.co_nlocals, obj.co_stacksize,
-                obj.co_flags, obj.co_code, obj.co_consts, obj.co_names,
-                obj.co_varnames, obj.co_filename, obj.co_name, obj.co_qualname,
-                obj.co_firstlineno, obj.co_lnotab, obj.co_endlinetable,
-                obj.co_columntable, obj.co_exceptiontable, obj.co_freevars,
-                obj.co_cellvars
+                ns.co_argcount, ns.co_posonlyargcount,
+                ns.co_kwonlyargcount, ns.co_nlocals, ns.co_stacksize,
+                ns.co_flags, ns.co_code, ns.co_consts, ns.co_names,
+                ns.co_varnames, ns.co_filename, ns.co_name, ns.co_qualname,
+                ns.co_firstlineno, ns.co_lnotab, ns.co_endlinetable,
+                ns.co_columntable, ns.co_exceptiontable, ns.co_freevars,
+                ns.co_cellvars
         )
-        elif hasattr(obj, "co_exceptiontable"):
+        elif hasattr(ns, "co_exceptiontable"):
             args = (
-                obj.co_argcount, obj.co_posonlyargcount,
-                obj.co_kwonlyargcount, obj.co_nlocals, obj.co_stacksize,
-                obj.co_flags, obj.co_code, obj.co_consts, obj.co_names,
-                obj.co_varnames, obj.co_filename, obj.co_name, obj.co_qualname,
-                obj.co_firstlineno, obj.co_lnotab, obj.co_exceptiontable,
-                obj.co_freevars, obj.co_cellvars
+                ns.co_argcount, ns.co_posonlyargcount,
+                ns.co_kwonlyargcount, ns.co_nlocals, ns.co_stacksize,
+                ns.co_flags, ns.co_code, ns.co_consts, ns.co_names,
+                ns.co_varnames, ns.co_filename, ns.co_name, ns.co_qualname,
+                ns.co_firstlineno, ns.co_lnotab, ns.co_exceptiontable,
+                ns.co_freevars, ns.co_cellvars
         )
-        elif hasattr(obj, "co_posonlyargcount"):
+        elif hasattr(ns, "co_posonlyargcount"):
             args = (
-                obj.co_argcount, obj.co_posonlyargcount,
-                obj.co_kwonlyargcount, obj.co_nlocals, obj.co_stacksize,
-                obj.co_flags, obj.co_code, obj.co_consts, obj.co_names,
-                obj.co_varnames, obj.co_filename, obj.co_name,
-                obj.co_firstlineno, obj.co_lnotab, obj.co_freevars,
-                obj.co_cellvars
+                ns.co_argcount, ns.co_posonlyargcount,
+                ns.co_kwonlyargcount, ns.co_nlocals, ns.co_stacksize,
+                ns.co_flags, ns.co_code, ns.co_consts, ns.co_names,
+                ns.co_varnames, ns.co_filename, ns.co_name,
+                ns.co_firstlineno, ns.co_lnotab, ns.co_freevars,
+                ns.co_cellvars
         )
         else:
             args = (
-                obj.co_argcount, obj.co_kwonlyargcount, obj.co_nlocals,
-                obj.co_stacksize, obj.co_flags, obj.co_code, obj.co_consts,
-                obj.co_names, obj.co_varnames, obj.co_filename,
-                obj.co_name, obj.co_firstlineno, obj.co_lnotab,
-                obj.co_freevars, obj.co_cellvars
+                ns.co_argcount, ns.co_kwonlyargcount, ns.co_nlocals,
+                ns.co_stacksize, ns.co_flags, ns.co_code, ns.co_consts,
+                ns.co_names, ns.co_varnames, ns.co_filename,
+                ns.co_name, ns.co_firstlineno, ns.co_lnotab,
+                ns.co_freevars, ns.co_cellvars
         )
     else:
         args = (
-            obj.co_argcount, obj.co_nlocals, obj.co_stacksize, obj.co_flags,
-            obj.co_code, obj.co_consts, obj.co_names, obj.co_varnames,
-            obj.co_filename, obj.co_name, obj.co_firstlineno, obj.co_lnotab,
-            obj.co_freevars, obj.co_cellvars
+            ns.co_argcount, ns.co_nlocals, ns.co_stacksize, ns.co_flags,
+            ns.co_code, ns.co_consts, ns.co_names, ns.co_varnames,
+            ns.co_filename, ns.co_name, ns.co_firstlineno, ns.co_lnotab,
+            ns.co_freevars, ns.co_cellvars
         )
 
     pickler.save_reduce(_create_code, args, obj=obj)
